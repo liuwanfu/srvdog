@@ -32,7 +32,12 @@ chmod +x ./scripts/open-srvdog.sh
 
 ## Optional Identity File
 
-By default the scripts let SSH use its normal default key and config lookup.
+By default the scripts first try:
+
+- `SRVDOG_IDENTITY_FILE`, if you set it
+- then the host-specific key:
+  - `~/.ssh/id_ed25519_racknerd_107_174_48_241`
+- then normal SSH default key and config lookup if no explicit file is found
 
 If you want to force a specific private key, set `SRVDOG_IDENTITY_FILE`.
 
