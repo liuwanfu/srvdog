@@ -1,4 +1,4 @@
-# watchSrv Design
+# srvdog Design
 
 **Date:** 2026-04-08
 
@@ -10,7 +10,7 @@
 - Existing full-featured monitoring UI felt too heavy and not suited to occasional troubleshooting.
 - Access should not rely on a web login system.
 - The dashboard should be reachable only through SSH port forwarding.
-- The repository `watchSrv` is currently empty, so the project can start with a focused structure.
+- The repository `srvdog` is currently empty, so the project can start with a focused structure.
 
 ## Requirements
 
