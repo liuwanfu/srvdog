@@ -38,6 +38,21 @@ Then open:
 http://127.0.0.1:8090
 ```
 
+## Launcher Scripts
+
+Convenience launchers are available in `scripts/`:
+
+- `scripts/open-srvdog.ps1`
+- `scripts/open-srvdog.sh`
+
+They:
+
+- check whether local port `8090` is already in use
+- open the SSH tunnel
+- launch the dashboard in the default browser
+
+See [scripts/README.md](scripts/README.md) for usage details.
+
 ## Local Build On Windows For Linux
 
 ```powershell
