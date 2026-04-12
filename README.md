@@ -21,6 +21,7 @@ Lightweight server resource dashboard for small Linux VPS hosts.
   - retention-day changes
   - export as JSON or CSV
   - clearing sampling history
+  - a local-only `Clash` management tab for subscription operations
 
 ## Access Model
 
@@ -79,6 +80,43 @@ The service writes runtime data to:
 
 - `data/settings.json`
 - `data/history/*.jsonl`
+- `data/clash/config.draft.yaml`
+- `data/clash/script.draft.yaml`
+- `data/clash/operations.log`
+
+## Clash Tab
+
+The `Clash` tab is intended for operators who already access `srvdog` through the SSH tunnel. It does not add a separate login layer.
+
+Features:
+
+- view current token and published subscription URLs
+- edit and save config YAML drafts
+- validate and publish config updates
+- edit and publish the managed dynamic script block
+- trigger geodata updates
+- rotate the token immediately and invalidate the old public directory
+- inspect operation logs and geodata update logs
+
+## Clash Environment
+
+These environment variables can override the built-in defaults:
+
+- `SRVDOG_CLASH_TOKEN_FILE`
+- `SRVDOG_CLASH_SITE_DIR`
+- `SRVDOG_CLASH_PUBLIC_BASE_URL`
+- `SRVDOG_CLASH_GEODATA_SCRIPT`
+- `SRVDOG_CLASH_GEODATA_LOG_PATH`
+- `SRVDOG_CLASH_MIHOMO_IMAGE`
+
+Default assumptions match the current VPS layout:
+
+- token file at `/root/mihomo-subscription/token`
+- published subscription directory at `/opt/cypht/data/site-wg`
+- public subscription base URL at `http://107.174.48.241/wg`
+- geodata update script at `/usr/local/bin/update-mihomo-geodata.sh`
+- geodata log at `/var/log/update-mihomo-geodata.log`
+- validation image `docker.io/metacubex/mihomo:Alpha`
 
 ## Sampling Model
 

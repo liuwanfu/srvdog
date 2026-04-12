@@ -3,10 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/liuwanfu/srvdog/internal/clash"
 	"github.com/liuwanfu/srvdog/internal/collector"
 	"github.com/liuwanfu/srvdog/internal/history"
 	"github.com/liuwanfu/srvdog/internal/model"
@@ -23,6 +25,12 @@ type Config struct {
 	HousekeepingInterval time.Duration
 	RealtimeCapacity     int
 	DefaultRetentionDays int
+	ClashTokenFile       string
+	ClashSiteDir         string
+	ClashPublicBaseURL   string
+	ClashGeodataScript   string
+	ClashGeodataLogPath  string
+	ClashMihomoImage     string
 }
 
 type Service struct {
@@ -33,6 +41,7 @@ type Service struct {
 	settings        *SettingsStore
 	realtime        *realtime.Buffer
 	viewerTracker   *realtime.ViewerTracker
+	clashManager    *clash.Manager
 
 	mu          sync.RWMutex
 	lastSample  model.Sample
@@ -51,6 +60,12 @@ func DefaultConfig() Config {
 		HousekeepingInterval: time.Hour,
 		RealtimeCapacity:     1800,
 		DefaultRetentionDays: 7,
+		ClashTokenFile:       envOrDefault("SRVDOG_CLASH_TOKEN_FILE", "/root/mihomo-subscription/token"),
+		ClashSiteDir:         envOrDefault("SRVDOG_CLASH_SITE_DIR", "/opt/cypht/data/site-wg"),
+		ClashPublicBaseURL:   envOrDefault("SRVDOG_CLASH_PUBLIC_BASE_URL", "http://107.174.48.241/wg"),
+		ClashGeodataScript:   envOrDefault("SRVDOG_CLASH_GEODATA_SCRIPT", "/usr/local/bin/update-mihomo-geodata.sh"),
+		ClashGeodataLogPath:  envOrDefault("SRVDOG_CLASH_GEODATA_LOG_PATH", "/var/log/update-mihomo-geodata.log"),
+		ClashMihomoImage:     envOrDefault("SRVDOG_CLASH_MIHOMO_IMAGE", "docker.io/metacubex/mihomo:Alpha"),
 	}
 }
 
@@ -72,6 +87,15 @@ func NewService(cfg Config) (*Service, error) {
 		settings:        settings,
 		realtime:        realtime.NewBuffer(cfg.RealtimeCapacity),
 		viewerTracker:   realtime.NewViewerTracker(cfg.ViewerTimeout),
+		clashManager: clash.NewManager(clash.Config{
+			DataDir:             cfg.DataDir,
+			TokenFile:           cfg.ClashTokenFile,
+			SiteDir:             cfg.ClashSiteDir,
+			PublicBaseURL:       cfg.ClashPublicBaseURL,
+			MihomoImage:         cfg.ClashMihomoImage,
+			GeodataUpdateScript: cfg.ClashGeodataScript,
+			GeodataLogPath:      cfg.ClashGeodataLogPath,
+		}),
 	}, nil
 }
 
@@ -280,4 +304,59 @@ func parseWindow(window string, now time.Time) (time.Time, time.Time, error) {
 	default:
 		return time.Time{}, time.Time{}, fmt.Errorf("unsupported window: %s", window)
 	}
+}
+
+func (s *Service) ClashStatus() (clash.Status, error) {
+	return s.clashManager.Status()
+}
+
+func (s *Service) ClashConfig() (clash.Document, error) {
+	return s.clashManager.GetConfig()
+}
+
+func (s *Service) SaveClashConfig(content string) error {
+	return s.clashManager.SaveConfigDraft(content)
+}
+
+func (s *Service) ValidateClashConfig(ctx context.Context) error {
+	return s.clashManager.ValidateConfig(ctx)
+}
+
+func (s *Service) PublishClashConfig(ctx context.Context) error {
+	return s.clashManager.PublishConfig(ctx)
+}
+
+func (s *Service) ClashScript() (clash.Document, error) {
+	return s.clashManager.GetScript()
+}
+
+func (s *Service) SaveClashScript(content string) error {
+	return s.clashManager.SaveScriptDraft(content)
+}
+
+func (s *Service) ValidateClashScript(ctx context.Context) error {
+	return s.clashManager.ValidateScript(ctx)
+}
+
+func (s *Service) PublishClashScript(ctx context.Context) error {
+	return s.clashManager.PublishScript(ctx)
+}
+
+func (s *Service) UpdateClashGeodata(ctx context.Context) error {
+	return s.clashManager.UpdateGeodata(ctx)
+}
+
+func (s *Service) RotateClashToken() (clash.Status, error) {
+	return s.clashManager.RotateToken()
+}
+
+func (s *Service) ClashLogs(limit int) (clash.Logs, error) {
+	return s.clashManager.ReadLogs(limit)
+}
+
+func envOrDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }

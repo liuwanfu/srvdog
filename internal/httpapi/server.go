@@ -1,22 +1,37 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"io/fs"
 	"net/http"
+	"strconv"
 
+	"github.com/liuwanfu/srvdog/internal/clash"
 	"github.com/liuwanfu/srvdog/internal/model"
 )
 
 type Dependencies struct {
-	Summary      func() model.Summary
-	History      func(string) ([]model.Sample, error)
-	Realtime     func() []model.Sample
-	TouchViewer  func(string)
-	SetRetention func(int) error
-	Export       func(string, string) ([]byte, string, error)
-	ClearHistory func() error
-	StaticFS     fs.FS
+	Summary             func() model.Summary
+	History             func(string) ([]model.Sample, error)
+	Realtime            func() []model.Sample
+	TouchViewer         func(string)
+	SetRetention        func(int) error
+	Export              func(string, string) ([]byte, string, error)
+	ClearHistory        func() error
+	ClashStatus         func() (clash.Status, error)
+	ClashConfig         func() (clash.Document, error)
+	SaveClashConfig     func(string) error
+	ValidateClashConfig func(context.Context) error
+	PublishClashConfig  func(context.Context) error
+	ClashScript         func() (clash.Document, error)
+	SaveClashScript     func(string) error
+	ValidateClashScript func(context.Context) error
+	PublishClashScript  func(context.Context) error
+	UpdateClashGeodata  func(context.Context) error
+	RotateClashToken    func() (clash.Status, error)
+	ClashLogs           func(int) (clash.Logs, error)
+	StaticFS            fs.FS
 }
 
 type Server struct {
@@ -40,6 +55,18 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/settings/retention", http.HandlerFunc(s.handleRetention))
 	mux.Handle("GET /api/export", http.HandlerFunc(s.handleExport))
 	mux.Handle("POST /api/history/clear", http.HandlerFunc(s.handleClearHistory))
+	mux.Handle("GET /api/clash/status", http.HandlerFunc(s.handleClashStatus))
+	mux.Handle("GET /api/clash/config", http.HandlerFunc(s.handleClashConfig))
+	mux.Handle("PUT /api/clash/config", http.HandlerFunc(s.handleClashSaveConfig))
+	mux.Handle("POST /api/clash/config/validate", http.HandlerFunc(s.handleClashValidateConfig))
+	mux.Handle("POST /api/clash/config/publish", http.HandlerFunc(s.handleClashPublishConfig))
+	mux.Handle("GET /api/clash/script", http.HandlerFunc(s.handleClashScript))
+	mux.Handle("PUT /api/clash/script", http.HandlerFunc(s.handleClashSaveScript))
+	mux.Handle("POST /api/clash/script/validate", http.HandlerFunc(s.handleClashValidateScript))
+	mux.Handle("POST /api/clash/script/publish", http.HandlerFunc(s.handleClashPublishScript))
+	mux.Handle("POST /api/clash/geodata/update", http.HandlerFunc(s.handleClashUpdateGeodata))
+	mux.Handle("POST /api/clash/token/rotate", http.HandlerFunc(s.handleClashRotateToken))
+	mux.Handle("GET /api/clash/logs", http.HandlerFunc(s.handleClashLogs))
 	return mux
 }
 
@@ -141,6 +168,133 @@ func (s *Server) handleClearHistory(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "cleared"})
+}
+
+func (s *Server) handleClashStatus(w http.ResponseWriter, _ *http.Request) {
+	status, err := s.deps.ClashStatus()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (s *Server) handleClashConfig(w http.ResponseWriter, _ *http.Request) {
+	doc, err := s.deps.ClashConfig()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, doc)
+}
+
+func (s *Server) handleClashSaveConfig(w http.ResponseWriter, r *http.Request) {
+	content, err := decodeContent(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.deps.SaveClashConfig(content); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
+func (s *Server) handleClashValidateConfig(w http.ResponseWriter, r *http.Request) {
+	if err := s.deps.ValidateClashConfig(r.Context()); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "valid"})
+}
+
+func (s *Server) handleClashPublishConfig(w http.ResponseWriter, r *http.Request) {
+	if err := s.deps.PublishClashConfig(r.Context()); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "published"})
+}
+
+func (s *Server) handleClashScript(w http.ResponseWriter, _ *http.Request) {
+	doc, err := s.deps.ClashScript()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, doc)
+}
+
+func (s *Server) handleClashSaveScript(w http.ResponseWriter, r *http.Request) {
+	content, err := decodeContent(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := s.deps.SaveClashScript(content); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
+func (s *Server) handleClashValidateScript(w http.ResponseWriter, r *http.Request) {
+	if err := s.deps.ValidateClashScript(r.Context()); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "valid"})
+}
+
+func (s *Server) handleClashPublishScript(w http.ResponseWriter, r *http.Request) {
+	if err := s.deps.PublishClashScript(r.Context()); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "published"})
+}
+
+func (s *Server) handleClashUpdateGeodata(w http.ResponseWriter, r *http.Request) {
+	if err := s.deps.UpdateClashGeodata(r.Context()); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+func (s *Server) handleClashRotateToken(w http.ResponseWriter, _ *http.Request) {
+	status, err := s.deps.RotateClashToken()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, status)
+}
+
+func (s *Server) handleClashLogs(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			limit = parsed
+		}
+	}
+	logs, err := s.deps.ClashLogs(limit)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, logs)
+}
+
+func decodeContent(r *http.Request) (string, error) {
+	var body struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return "", err
+	}
+	return body.Content, nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

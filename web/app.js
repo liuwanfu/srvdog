@@ -3,12 +3,27 @@ const state = {
   realtime: [],
   summary: null,
   viewerId: crypto.randomUUID(),
+  activeTab: "overview",
+  clash: {
+    status: null,
+    logs: null,
+  },
 };
 
 const cardsEl = document.getElementById("cards");
 const dockerTableBody = document.querySelector("#docker-table tbody");
 const retentionEl = document.getElementById("retention");
 const windowEl = document.getElementById("window");
+const overviewView = document.getElementById("overview-view");
+const clashView = document.getElementById("clash-view");
+const clashNoticeEl = document.getElementById("clash-notice");
+const clashStatusEl = document.getElementById("clash-status");
+const clashConfigEditorEl = document.getElementById("clash-config-editor");
+const clashScriptEditorEl = document.getElementById("clash-script-editor");
+const clashConfigSourceEl = document.getElementById("clash-config-source");
+const clashScriptSourceEl = document.getElementById("clash-script-source");
+const clashOperationsLogEl = document.getElementById("clash-operations-log");
+const clashGeodataLogEl = document.getElementById("clash-geodata-log");
 
 function bytes(value) {
   if (!value) return "0 B";
@@ -31,12 +46,25 @@ function percent(used, total) {
   return (used / total) * 100;
 }
 
-async function getJSON(url, options = {}) {
+async function request(url, options = {}) {
   const response = await fetch(url, options);
   if (!response.ok) {
     throw new Error(await response.text());
   }
+  return response;
+}
+
+async function getJSON(url, options = {}) {
+  const response = await request(url, options);
   return response.json();
+}
+
+async function sendJSON(url, method, payload = {}) {
+  return getJSON(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
 }
 
 function renderCards(summary) {
@@ -159,7 +187,7 @@ async function refreshRealtime() {
 }
 
 async function sendHeartbeat() {
-  await fetch("/api/heartbeat", {
+  await request("/api/heartbeat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ id: state.viewerId }),
@@ -167,7 +195,7 @@ async function sendHeartbeat() {
 }
 
 async function setRetention(days) {
-  await fetch("/api/settings/retention", {
+  await request("/api/settings/retention", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ days }),
@@ -184,10 +212,153 @@ async function clearHistory() {
   if (!window.confirm("Clear all stored sampling history?")) {
     return;
   }
-  await fetch("/api/history/clear", { method: "POST" });
+  await request("/api/history/clear", { method: "POST" });
   state.history = [];
   state.realtime = [];
   renderCharts();
+}
+
+function setNotice(message, isError = false) {
+  clashNoticeEl.textContent = message;
+  clashNoticeEl.classList.remove("hidden", "error");
+  if (isError) {
+    clashNoticeEl.classList.add("error");
+  }
+}
+
+function clearNotice() {
+  clashNoticeEl.textContent = "";
+  clashNoticeEl.classList.add("hidden");
+  clashNoticeEl.classList.remove("error");
+}
+
+function renderClashStatus(status) {
+  const items = [
+    ["Current Token", status.token || "-"],
+    ["Subscription URL", status.subscription_url || "-"],
+    ["Config Path", status.config_path || "-"],
+    ["Script Path", status.script_path || "-"],
+    ["GeoIP URL", status.geoip_url || "-"],
+    ["GeoSite URL", status.geosite_url || "-"],
+  ];
+  clashStatusEl.innerHTML = items.map(([label, value]) => `
+    <div class="status-item">
+      <span>${label}</span>
+      <code>${value}</code>
+    </div>
+  `).join("");
+}
+
+function renderClashLogs(logs) {
+  clashOperationsLogEl.textContent = (logs.operations || []).join("\n") || "No operations yet.";
+  clashGeodataLogEl.textContent = (logs.geodata || []).join("\n") || "No geodata log yet.";
+}
+
+async function refreshClashStatus() {
+  state.clash.status = await getJSON("/api/clash/status");
+  renderClashStatus(state.clash.status);
+}
+
+async function refreshClashConfig() {
+  const doc = await getJSON("/api/clash/config");
+  clashConfigEditorEl.value = doc.content || "";
+  clashConfigSourceEl.textContent = doc.source || "published";
+}
+
+async function refreshClashScript() {
+  const doc = await getJSON("/api/clash/script");
+  clashScriptEditorEl.value = doc.content || "";
+  clashScriptSourceEl.textContent = doc.source || "published";
+}
+
+async function refreshClashLogs() {
+  state.clash.logs = await getJSON("/api/clash/logs?limit=80");
+  renderClashLogs(state.clash.logs);
+}
+
+async function refreshClashAll() {
+  clearNotice();
+  await Promise.all([
+    refreshClashStatus(),
+    refreshClashConfig(),
+    refreshClashScript(),
+    refreshClashLogs(),
+  ]);
+}
+
+async function saveClashConfig() {
+  await sendJSON("/api/clash/config", "PUT", { content: clashConfigEditorEl.value });
+  setNotice("Config draft saved.");
+  await refreshClashConfig();
+}
+
+async function validateClashConfig() {
+  await request("/api/clash/config/validate", { method: "POST" });
+  setNotice("Config validation passed.");
+}
+
+async function publishClashConfig() {
+  await request("/api/clash/config/publish", { method: "POST" });
+  setNotice("Config published.");
+  await refreshClashAll();
+}
+
+async function saveClashScript() {
+  await sendJSON("/api/clash/script", "PUT", { content: clashScriptEditorEl.value });
+  setNotice("Script draft saved.");
+  await refreshClashScript();
+}
+
+async function validateClashScript() {
+  await request("/api/clash/script/validate", { method: "POST" });
+  setNotice("Script validation passed.");
+}
+
+async function publishClashScript() {
+  await request("/api/clash/script/publish", { method: "POST" });
+  setNotice("Script published.");
+  await refreshClashAll();
+}
+
+async function updateClashGeodata() {
+  await request("/api/clash/geodata/update", { method: "POST" });
+  setNotice("Geodata update triggered.");
+  await refreshClashLogs();
+}
+
+async function rotateClashToken() {
+  if (!window.confirm("Rotate token now? The old token will stop working immediately.")) {
+    return;
+  }
+  const status = await getJSON("/api/clash/token/rotate", { method: "POST" });
+  setNotice(`Token rotated to ${status.token}.`);
+  await refreshClashAll();
+}
+
+async function copySubscriptionURL() {
+  const value = state.clash.status?.subscription_url || "";
+  if (!value) {
+    throw new Error("Subscription URL is empty.");
+  }
+  await navigator.clipboard.writeText(value);
+  setNotice("Subscription URL copied.");
+}
+
+function switchTab(tab) {
+  state.activeTab = tab;
+  for (const button of document.querySelectorAll(".tab-button")) {
+    button.classList.toggle("active", button.dataset.tab === tab);
+  }
+  overviewView.classList.toggle("hidden", tab !== "overview");
+  clashView.classList.toggle("hidden", tab !== "clash");
+  if (tab === "clash") {
+    refreshClashAll().catch(handleClashError);
+  }
+}
+
+function handleClashError(error) {
+  console.error(error);
+  setNotice(error.message, true);
 }
 
 retentionEl.addEventListener("change", (event) => {
@@ -201,6 +372,24 @@ windowEl.addEventListener("change", () => {
 document.getElementById("export-json").addEventListener("click", () => exportData("json"));
 document.getElementById("export-csv").addEventListener("click", () => exportData("csv"));
 document.getElementById("clear-history").addEventListener("click", () => clearHistory().catch(alert));
+
+for (const button of document.querySelectorAll(".tab-button")) {
+  button.addEventListener("click", () => switchTab(button.dataset.tab));
+}
+
+document.getElementById("clash-refresh").addEventListener("click", () => refreshClashAll().catch(handleClashError));
+document.getElementById("clash-copy-subscription").addEventListener("click", () => copySubscriptionURL().catch(handleClashError));
+document.getElementById("clash-update-geodata").addEventListener("click", () => updateClashGeodata().catch(handleClashError));
+document.getElementById("clash-rotate-token").addEventListener("click", () => rotateClashToken().catch(handleClashError));
+document.getElementById("clash-config-reload").addEventListener("click", () => refreshClashConfig().catch(handleClashError));
+document.getElementById("clash-config-save").addEventListener("click", () => saveClashConfig().catch(handleClashError));
+document.getElementById("clash-config-validate").addEventListener("click", () => validateClashConfig().catch(handleClashError));
+document.getElementById("clash-config-publish").addEventListener("click", () => publishClashConfig().catch(handleClashError));
+document.getElementById("clash-script-reload").addEventListener("click", () => refreshClashScript().catch(handleClashError));
+document.getElementById("clash-script-save").addEventListener("click", () => saveClashScript().catch(handleClashError));
+document.getElementById("clash-script-validate").addEventListener("click", () => validateClashScript().catch(handleClashError));
+document.getElementById("clash-script-publish").addEventListener("click", () => publishClashScript().catch(handleClashError));
+document.getElementById("clash-logs-refresh").addEventListener("click", () => refreshClashLogs().catch(handleClashError));
 
 async function boot() {
   await Promise.all([refreshSummary(), refreshHistory()]);

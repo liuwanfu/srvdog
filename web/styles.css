@@ -75,6 +75,25 @@ button.danger {
   color: #ffd8d6;
 }
 
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.tab-button {
+  min-width: 110px;
+}
+
+.tab-button.active {
+  background: #17324a;
+  border-color: #2f5d7d;
+}
+
+.view.hidden {
+  display: none;
+}
+
 .cards {
   display: grid;
   gap: 14px;
@@ -113,6 +132,106 @@ button.danger {
   font-size: 18px;
 }
 
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.panel-header h2 {
+  margin-bottom: 0;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.clash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.9fr);
+  gap: 16px;
+}
+
+.stack {
+  display: grid;
+  gap: 16px;
+}
+
+.notice {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #284058;
+  background: rgba(16, 25, 35, 0.92);
+}
+
+.notice.error {
+  border-color: rgba(239, 83, 80, 0.4);
+  color: #ffd8d6;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.status-item {
+  background: rgba(8, 16, 25, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.status-item span {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.status-item strong,
+.status-item code {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.editor,
+.log-box {
+  width: 100%;
+  min-height: 280px;
+  resize: vertical;
+  background: #081019;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  font: 13px/1.6 "SFMono-Regular", "Consolas", "Menlo", monospace;
+}
+
+.log-box {
+  margin: 0;
+  min-height: 220px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 canvas {
   width: 100%;
   height: auto;
@@ -143,6 +262,10 @@ th {
   }
 
   .charts {
+    grid-template-columns: 1fr;
+  }
+
+  .clash-grid {
     grid-template-columns: 1fr;
   }
 }

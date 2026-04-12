@@ -39,40 +39,111 @@
       </div>
     </header>
 
-    <section class="cards" id="cards"></section>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab-button active" data-tab="overview">Overview</button>
+      <button class="tab-button" data-tab="clash">Clash</button>
+    </nav>
 
-    <section class="charts">
-      <article class="panel">
-        <h2>CPU %</h2>
-        <canvas id="cpu-chart" width="600" height="180"></canvas>
-      </article>
-      <article class="panel">
-        <h2>Memory %</h2>
-        <canvas id="memory-chart" width="600" height="180"></canvas>
-      </article>
-      <article class="panel">
-        <h2>Disk %</h2>
-        <canvas id="disk-chart" width="600" height="180"></canvas>
-      </article>
-      <article class="panel">
-        <h2>Network KB/s</h2>
-        <canvas id="network-chart" width="600" height="180"></canvas>
-      </article>
+    <section id="overview-view" class="view">
+      <section class="cards" id="cards"></section>
+
+      <section class="charts">
+        <article class="panel">
+          <h2>CPU %</h2>
+          <canvas id="cpu-chart" width="600" height="180"></canvas>
+        </article>
+        <article class="panel">
+          <h2>Memory %</h2>
+          <canvas id="memory-chart" width="600" height="180"></canvas>
+        </article>
+        <article class="panel">
+          <h2>Disk %</h2>
+          <canvas id="disk-chart" width="600" height="180"></canvas>
+        </article>
+        <article class="panel">
+          <h2>Network KB/s</h2>
+          <canvas id="network-chart" width="600" height="180"></canvas>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>Docker</h2>
+        <table id="docker-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Image</th>
+              <th>Status</th>
+              <th>Health</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
     </section>
 
-    <section class="panel">
-      <h2>Docker</h2>
-      <table id="docker-table">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Image</th>
-            <th>Status</th>
-            <th>Health</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+    <section id="clash-view" class="view hidden">
+      <div id="clash-notice" class="notice hidden"></div>
+
+      <section class="clash-grid">
+        <div class="stack">
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Subscription</h2>
+              <button id="clash-refresh">Refresh</button>
+            </div>
+            <div id="clash-status" class="status-grid"></div>
+            <div class="panel-actions">
+              <button id="clash-copy-subscription">Copy Subscription URL</button>
+              <button id="clash-update-geodata">Update GeoIP / GeoSite</button>
+              <button id="clash-rotate-token" class="danger">Rotate Token</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Config YAML</h2>
+              <span id="clash-config-source" class="badge">published</span>
+            </div>
+            <textarea id="clash-config-editor" class="editor" spellcheck="false"></textarea>
+            <div class="panel-actions">
+              <button id="clash-config-reload">Reload</button>
+              <button id="clash-config-save">Save Draft</button>
+              <button id="clash-config-validate">Validate</button>
+              <button id="clash-config-publish">Publish</button>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Dynamic Script</h2>
+              <span id="clash-script-source" class="badge">published</span>
+            </div>
+            <textarea id="clash-script-editor" class="editor" spellcheck="false"></textarea>
+            <div class="panel-actions">
+              <button id="clash-script-reload">Reload</button>
+              <button id="clash-script-save">Save Draft</button>
+              <button id="clash-script-validate">Validate</button>
+              <button id="clash-script-publish">Publish</button>
+            </div>
+          </article>
+        </div>
+
+        <div class="stack">
+          <article class="panel">
+            <div class="panel-header">
+              <h2>Operations Log</h2>
+              <button id="clash-logs-refresh">Refresh</button>
+            </div>
+            <pre id="clash-operations-log" class="log-box"></pre>
+          </article>
+
+          <article class="panel">
+            <h2>Geodata Log</h2>
+            <pre id="clash-geodata-log" class="log-box"></pre>
+          </article>
+        </div>
+      </section>
     </section>
   </main>
   <script src="/app.js"></script>
