@@ -11,6 +11,13 @@ $RemotePort = 8090
 $Url = "http://127.0.0.1:8090"
 $IdentityFile = $env:SRVDOG_IDENTITY_FILE
 
+if (-not $IdentityFile) {
+    $defaultIdentity = Join-Path $HOME ".ssh\id_ed25519_racknerd_107_174_48_241"
+    if (Test-Path $defaultIdentity) {
+        $IdentityFile = $defaultIdentity
+    }
+}
+
 function Test-PortInUse {
     param([int]$PortNumber)
 
@@ -33,17 +40,16 @@ if (Test-PortInUse -PortNumber $LocalPort) {
     exit 1
 }
 
-$sshArgs = @(
-    "-N",
+$sshArgs = @("-N")
+if ($IdentityFile) {
+    $sshArgs += @("-i", $IdentityFile)
+}
+$sshArgs += @(
     "-o", "IdentitiesOnly=yes",
     "-L", "$LocalHost`:$LocalPort`:$RemoteHost`:$RemotePort",
     "-p", "$Port",
     "$User@$HostName"
 )
-
-if ($IdentityFile) {
-    $sshArgs = @("-i", $IdentityFile) + $sshArgs
-}
 
 Write-Host "Opening srvdog tunnel on $Url"
 Write-Host "Target: ${User}@${HostName}:${Port} -> ${RemoteHost}:${RemotePort}"

@@ -46,6 +46,7 @@ func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	fileServer := http.FileServer(http.FS(s.deps.StaticFS))
 	mux.Handle("GET /app.js", fileServer)
+	mux.Handle("GET /chart-utils.js", fileServer)
 	mux.Handle("GET /styles.css", fileServer)
 	mux.Handle("GET /", http.HandlerFunc(s.handleIndex))
 	mux.Handle("GET /api/summary", http.HandlerFunc(s.handleSummary))

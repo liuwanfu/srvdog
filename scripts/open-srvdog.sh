@@ -11,6 +11,10 @@ REMOTE_PORT="8090"
 URL="http://127.0.0.1:8090"
 IDENTITY_FILE="${SRVDOG_IDENTITY_FILE:-}"
 
+if [[ -z "${IDENTITY_FILE}" && -f "${HOME}/.ssh/id_ed25519_racknerd_107_174_48_241" ]]; then
+  IDENTITY_FILE="${HOME}/.ssh/id_ed25519_racknerd_107_174_48_241"
+fi
+
 if ! command -v ssh >/dev/null 2>&1; then
   echo "ssh was not found in PATH." >&2
   exit 1

@@ -58,6 +58,28 @@ func TestHeartbeatHandlerAcceptsQueryID(t *testing.T) {
 	}
 }
 
+func TestChartUtilsScriptServed(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/chart-utils.js", nil)
+	rec := httptest.NewRecorder()
+
+	srv := NewServer(Dependencies{
+		StaticFS: fstest.MapFS{
+			"index.html":     &fstest.MapFile{Data: []byte("ok")},
+			"app.js":         &fstest.MapFile{Data: []byte("ok")},
+			"chart-utils.js": &fstest.MapFile{Data: []byte("chart utils")},
+			"styles.css":     &fstest.MapFile{Data: []byte("ok")},
+		},
+	})
+	srv.Routes().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if rec.Body.String() != "chart utils" {
+		t.Fatalf("body = %q, want chart utils", rec.Body.String())
+	}
+}
+
 func TestClashStatusHandler(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/clash/status", nil)
 	rec := httptest.NewRecorder()
