@@ -2,5 +2,5 @@ package web
 
 import "embed"
 
-//go:embed index.html app.js styles.css
+//go:embed index.html app.js chart-utils.js styles.css
 var FS embed.FS

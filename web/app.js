@@ -9,6 +9,7 @@ const cardsEl = document.getElementById("cards");
 const dockerTableBody = document.querySelector("#docker-table tbody");
 const retentionEl = document.getElementById("retention");
 const windowEl = document.getElementById("window");
+const chartUtils = window.SrvdogChartUtils;
 
 function bytes(value) {
   if (!value) return "0 B";
@@ -91,39 +92,76 @@ function drawLine(canvasId, values, colors) {
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
+  const layout = chartUtils.createChartLayout(width, height);
+  const axis = resolveAxis(values, canvasId);
 
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = "#081019";
   ctx.fillRect(0, 0, width, height);
 
-  ctx.strokeStyle = "rgba(255,255,255,0.12)";
-  for (let i = 1; i < 4; i += 1) {
-    const y = (height / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
-  }
+  drawYAxis(ctx, width, height, layout, axis);
 
   values.forEach((series, index) => {
     if (series.length < 2) {
       return;
     }
-    const max = Math.max(...series.map((item) => item.value), 1);
     ctx.strokeStyle = colors[index];
     ctx.lineWidth = 2;
     ctx.beginPath();
     series.forEach((item, i) => {
-      const x = (width / Math.max(series.length - 1, 1)) * i;
-      const y = height - (item.value / max) * (height - 12) - 6;
+      const point = chartUtils.projectPoint({
+        index: i,
+        count: series.length,
+        value: item.value,
+        max: axis.max,
+        layout,
+      });
       if (i === 0) {
-        ctx.moveTo(x, y);
+        ctx.moveTo(point.x, point.y);
       } else {
-        ctx.lineTo(x, y);
+        ctx.lineTo(point.x, point.y);
       }
     });
     ctx.stroke();
   });
+}
+
+function resolveAxis(values, canvasId) {
+  if (canvasId === "network-chart") {
+    const max = Math.max(
+      0,
+      ...values.flatMap((series) => series.map((item) => item.value)),
+    );
+    return chartUtils.buildRateYAxis(max);
+  }
+  return chartUtils.buildPercentYAxis();
+}
+
+function drawYAxis(ctx, width, height, layout, axis) {
+  ctx.save();
+  ctx.font = '11px "Segoe UI", "PingFang SC", sans-serif';
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(231, 238, 247, 0.72)";
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 1;
+
+  axis.ticks.forEach((tick) => {
+    const point = chartUtils.projectPoint({
+      index: 0,
+      count: 1,
+      value: tick.value,
+      max: axis.max,
+      layout,
+    });
+    ctx.beginPath();
+    ctx.moveTo(layout.left, point.y);
+    ctx.lineTo(width - layout.right, point.y);
+    ctx.stroke();
+    ctx.fillText(tick.label, layout.left - 8, point.y);
+  });
+
+  ctx.restore();
 }
 
 function renderCharts() {
