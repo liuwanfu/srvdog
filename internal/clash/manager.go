@@ -86,19 +86,7 @@ func (m *Manager) Status() (Status, error) {
 	}
 
 	token := strings.TrimSpace(string(tokenBytes))
-	tokenDir := filepath.Join(m.cfg.SiteDir, token)
-	baseURL := strings.TrimRight(m.cfg.PublicBaseURL, "/")
-
-	return Status{
-		Token:           token,
-		ConfigPath:      filepath.Join(tokenDir, "config.yaml"),
-		ScriptPath:      filepath.Join(tokenDir, "script.yaml"),
-		GeoIPPath:       filepath.Join(tokenDir, "geoip.dat"),
-		GeoSitePath:     filepath.Join(tokenDir, "geosite.dat"),
-		SubscriptionURL: baseURL + "/" + token + "/config.yaml",
-		GeoIPURL:        baseURL + "/" + token + "/geoip.dat",
-		GeoSiteURL:      baseURL + "/" + token + "/geosite.dat",
-	}, nil
+	return m.statusForToken(token), nil
 }
 
 func (m *Manager) GetConfig() (Document, error) {
@@ -259,22 +247,27 @@ func (m *Manager) RotateToken() (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	newDir := filepath.Join(m.cfg.SiteDir, newToken)
+	newStatus := m.statusForToken(newToken)
+	newDir := filepath.Dir(newStatus.ConfigPath)
 	if err := os.MkdirAll(newDir, 0o755); err != nil {
 		return Status{}, err
 	}
-	if err := copyFile(oldStatus.ConfigPath, filepath.Join(newDir, "config.yaml")); err != nil {
+	configBytes, err := os.ReadFile(oldStatus.ConfigPath)
+	if err != nil {
+		return Status{}, err
+	}
+	if err := writeFileAtomic(newStatus.ConfigPath, []byte(rewriteGeoxURLs(string(configBytes), newStatus)), 0o644); err != nil {
 		return Status{}, err
 	}
 	if _, err := os.Stat(oldStatus.ScriptPath); err == nil {
-		if err := copyFile(oldStatus.ScriptPath, filepath.Join(newDir, "script.yaml")); err != nil {
+		if err := copyFile(oldStatus.ScriptPath, newStatus.ScriptPath); err != nil {
 			return Status{}, err
 		}
 	}
-	if err := copyFile(oldStatus.GeoIPPath, filepath.Join(newDir, "geoip.dat")); err != nil {
+	if err := copyFile(oldStatus.GeoIPPath, newStatus.GeoIPPath); err != nil {
 		return Status{}, err
 	}
-	if err := copyFile(oldStatus.GeoSitePath, filepath.Join(newDir, "geosite.dat")); err != nil {
+	if err := copyFile(oldStatus.GeoSitePath, newStatus.GeoSitePath); err != nil {
 		return Status{}, err
 	}
 	if err := writeFileAtomic(m.cfg.TokenFile, []byte(newToken+"\n"), 0o600); err != nil {
@@ -331,6 +324,22 @@ func (m *Manager) operationsLogPath() string {
 
 func (m *Manager) clashDataDir() string {
 	return filepath.Join(m.cfg.DataDir, "clash")
+}
+
+func (m *Manager) statusForToken(token string) Status {
+	tokenDir := filepath.Join(m.cfg.SiteDir, token)
+	baseURL := strings.TrimRight(m.cfg.PublicBaseURL, "/")
+
+	return Status{
+		Token:           token,
+		ConfigPath:      filepath.Join(tokenDir, "config.yaml"),
+		ScriptPath:      filepath.Join(tokenDir, "script.yaml"),
+		GeoIPPath:       filepath.Join(tokenDir, "geoip.dat"),
+		GeoSitePath:     filepath.Join(tokenDir, "geosite.dat"),
+		SubscriptionURL: baseURL + "/" + token + "/config.yaml",
+		GeoIPURL:        baseURL + "/" + token + "/geoip.dat",
+		GeoSiteURL:      baseURL + "/" + token + "/geosite.dat",
+	}
 }
 
 func (m *Manager) validateMergedConfig(ctx context.Context, merged string, status Status) error {
@@ -403,6 +412,42 @@ func mergeManagedScriptBlock(baseConfig, script string) string {
 		return baseConfig[:idx] + "\n\n" + block + baseConfig[idx:] + "\n"
 	}
 	return baseConfig + "\n\n" + block + "\n"
+}
+
+func rewriteGeoxURLs(content string, status Status) string {
+	lines := strings.Split(content, "\n")
+	inGeox := false
+	geoxIndent := 0
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		indent := len(line) - len(strings.TrimLeft(line, " \t"))
+		if !inGeox && trimmed == "geox-url:" {
+			inGeox = true
+			geoxIndent = indent
+			continue
+		}
+		if inGeox && indent <= geoxIndent {
+			inGeox = false
+		}
+		if !inGeox {
+			continue
+		}
+
+		prefix := line[:indent]
+		switch {
+		case strings.HasPrefix(trimmed, "geoip:"):
+			lines[i] = prefix + "geoip: " + status.GeoIPURL
+		case strings.HasPrefix(trimmed, "geosite:"):
+			lines[i] = prefix + "geosite: " + status.GeoSiteURL
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 func writeFileAtomic(path string, data []byte, mode os.FileMode) error {

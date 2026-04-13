@@ -42,6 +42,18 @@ function rate(value) {
   return `${bytes(value)}/s`;
 }
 
+function formatMode(mode) {
+  if (mode === "high") return "高频";
+  if (mode === "low") return "低频";
+  return mode;
+}
+
+function formatDocumentSource(source) {
+  if (source === "draft") return "草稿";
+  if (source === "published" || !source) return "已发布";
+  return source;
+}
+
 function percent(used, total) {
   if (!total) return 0;
   return (used / total) * 100;
@@ -71,16 +83,16 @@ async function sendJSON(url, method, payload = {}) {
 function renderCards(summary) {
   const sample = summary.sample;
   const entries = [
-    ["Mode", summary.mode.toUpperCase()],
+    ["模式", formatMode(summary.mode)],
     ["CPU", `${sample.cpu_percent.toFixed(1)}%`],
-    ["Load", `${sample.load_1.toFixed(2)} / ${sample.load_5.toFixed(2)} / ${sample.load_15.toFixed(2)}`],
-    ["Memory", `${bytes(sample.mem_used_bytes)} / ${bytes(sample.mem_total_bytes)}`],
-    ["Swap", `${bytes(sample.swap_used_bytes)} / ${bytes(sample.swap_total_bytes)}`],
-    ["Disk", `${bytes(sample.disk_used_bytes)} / ${bytes(sample.disk_total_bytes)}`],
-    ["Network realtime", `↓ ${rate(sample.net_rx_bps)} · ↑ ${rate(sample.net_tx_bps)}`],
-    ["Network avg", `↓ ${rate(sample.net_rx_avg_bps)} · ↑ ${rate(sample.net_tx_avg_bps)}`],
-    ["Interface", sample.primary_interface || "n/a"],
-    ["Updated", summary.updated_at ? new Date(summary.updated_at).toLocaleString() : "-"],
+    ["负载", `${sample.load_1.toFixed(2)} / ${sample.load_5.toFixed(2)} / ${sample.load_15.toFixed(2)}`],
+    ["内存", `${bytes(sample.mem_used_bytes)} / ${bytes(sample.mem_total_bytes)}`],
+    ["交换分区", `${bytes(sample.swap_used_bytes)} / ${bytes(sample.swap_total_bytes)}`],
+    ["磁盘", `${bytes(sample.disk_used_bytes)} / ${bytes(sample.disk_total_bytes)}`],
+    ["网络实时", `↓ ${rate(sample.net_rx_bps)} · ↑ ${rate(sample.net_tx_bps)}`],
+    ["网络平均", `↓ ${rate(sample.net_rx_avg_bps)} · ↑ ${rate(sample.net_tx_avg_bps)}`],
+    ["网络接口", sample.primary_interface || "未知"],
+    ["更新时间", summary.updated_at ? new Date(summary.updated_at).toLocaleString() : "-"],
   ];
 
   cardsEl.innerHTML = entries.map(([label, value]) => `
@@ -105,7 +117,7 @@ function renderDocker(summary) {
   }
   if ((summary.docker || []).length === 0) {
     const row = document.createElement("tr");
-    row.innerHTML = `<td colspan="4">${summary.docker_error || "No containers"}</td>`;
+    row.innerHTML = `<td colspan="4">${summary.docker_error || "暂无容器"}</td>`;
     dockerTableBody.appendChild(row);
   }
 }
@@ -247,7 +259,7 @@ function exportData(format) {
 }
 
 async function clearHistory() {
-  if (!window.confirm("Clear all stored sampling history?")) {
+  if (!window.confirm("确定要清空所有采样历史吗？")) {
     return;
   }
   await request("/api/history/clear", { method: "POST" });
@@ -272,10 +284,10 @@ function clearNotice() {
 
 function renderClashStatus(status) {
   const items = [
-    ["Current Token", status.token || "-"],
-    ["Subscription URL", status.subscription_url || "-"],
-    ["Config Path", status.config_path || "-"],
-    ["Script Path", status.script_path || "-"],
+    ["当前 Token", status.token || "-"],
+    ["订阅 URL", status.subscription_url || "-"],
+    ["配置路径", status.config_path || "-"],
+    ["脚本路径", status.script_path || "-"],
     ["GeoIP URL", status.geoip_url || "-"],
     ["GeoSite URL", status.geosite_url || "-"],
   ];
@@ -288,8 +300,8 @@ function renderClashStatus(status) {
 }
 
 function renderClashLogs(logs) {
-  clashOperationsLogEl.textContent = (logs.operations || []).join("\n") || "No operations yet.";
-  clashGeodataLogEl.textContent = (logs.geodata || []).join("\n") || "No geodata log yet.";
+  clashOperationsLogEl.textContent = (logs.operations || []).join("\n") || "暂无操作记录。";
+  clashGeodataLogEl.textContent = (logs.geodata || []).join("\n") || "暂无 Geo 数据日志。";
 }
 
 async function refreshClashStatus() {
@@ -300,13 +312,13 @@ async function refreshClashStatus() {
 async function refreshClashConfig() {
   const doc = await getJSON("/api/clash/config");
   clashConfigEditorEl.value = doc.content || "";
-  clashConfigSourceEl.textContent = doc.source || "published";
+  clashConfigSourceEl.textContent = formatDocumentSource(doc.source);
 }
 
 async function refreshClashScript() {
   const doc = await getJSON("/api/clash/script");
   clashScriptEditorEl.value = doc.content || "";
-  clashScriptSourceEl.textContent = doc.source || "published";
+  clashScriptSourceEl.textContent = formatDocumentSource(doc.source);
 }
 
 async function refreshClashLogs() {
@@ -326,60 +338,60 @@ async function refreshClashAll() {
 
 async function saveClashConfig() {
   await sendJSON("/api/clash/config", "PUT", { content: clashConfigEditorEl.value });
-  setNotice("Config draft saved.");
+  setNotice("已保存配置草稿。");
   await refreshClashConfig();
 }
 
 async function validateClashConfig() {
   await request("/api/clash/config/validate", { method: "POST" });
-  setNotice("Config validation passed.");
+  setNotice("配置校验通过。");
 }
 
 async function publishClashConfig() {
   await request("/api/clash/config/publish", { method: "POST" });
-  setNotice("Config published.");
+  setNotice("配置已发布。");
   await refreshClashAll();
 }
 
 async function saveClashScript() {
   await sendJSON("/api/clash/script", "PUT", { content: clashScriptEditorEl.value });
-  setNotice("Script draft saved.");
+  setNotice("已保存脚本草稿。");
   await refreshClashScript();
 }
 
 async function validateClashScript() {
   await request("/api/clash/script/validate", { method: "POST" });
-  setNotice("Script validation passed.");
+  setNotice("脚本校验通过。");
 }
 
 async function publishClashScript() {
   await request("/api/clash/script/publish", { method: "POST" });
-  setNotice("Script published.");
+  setNotice("脚本已发布。");
   await refreshClashAll();
 }
 
 async function updateClashGeodata() {
   await request("/api/clash/geodata/update", { method: "POST" });
-  setNotice("Geodata update triggered.");
+  setNotice("已触发 Geo 数据更新。");
   await refreshClashLogs();
 }
 
 async function rotateClashToken() {
-  if (!window.confirm("Rotate token now? The old token will stop working immediately.")) {
+  if (!window.confirm("确定要立即轮换 Token 吗？旧 Token 会立刻失效。")) {
     return;
   }
   const status = await getJSON("/api/clash/token/rotate", { method: "POST" });
-  setNotice(`Token rotated to ${status.token}.`);
+  setNotice(`Token 已轮换为 ${status.token}。`);
   await refreshClashAll();
 }
 
 async function copySubscriptionURL() {
   const value = state.clash.status?.subscription_url || "";
   if (!value) {
-    throw new Error("Subscription URL is empty.");
+    throw new Error("订阅 URL 为空。");
   }
   await navigator.clipboard.writeText(value);
-  setNotice("Subscription URL copied.");
+  setNotice("订阅 URL 已复制。");
 }
 
 function switchTab(tab) {

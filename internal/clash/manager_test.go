@@ -216,6 +216,50 @@ func TestRotateTokenCopiesCurrentPublishedFilesAndRemovesOldDirectory(t *testing
 	}
 }
 
+func TestRotateTokenRewritesPublishedGeoxURLsToUseNewToken(t *testing.T) {
+	root := t.TempDir()
+	manager := newTestManager(t, root, testPaths{
+		token: "oldtoken",
+		publishedConfig: strings.Join([]string{
+			"mode: rule",
+			"geox-url:",
+			"  geoip: https://example.com/wg/oldtoken/geoip.dat",
+			"  geosite: https://example.com/wg/oldtoken/geosite.dat",
+			"rules:",
+			"  - MATCH,PROXY",
+			"",
+		}, "\n"),
+		geoIP:   "geoip",
+		geoSite: "geosite",
+	})
+	manager.cfg.TokenGenerator = func() (string, error) {
+		return "newtoken", nil
+	}
+
+	status, err := manager.RotateToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	configBytes, err := os.ReadFile(status.ConfigPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configText := string(configBytes)
+	if !strings.Contains(configText, "https://example.com/wg/newtoken/geoip.dat") {
+		t.Fatalf("rotated config missing new geoip url: %s", configText)
+	}
+	if !strings.Contains(configText, "https://example.com/wg/newtoken/geosite.dat") {
+		t.Fatalf("rotated config missing new geosite url: %s", configText)
+	}
+	if strings.Contains(configText, "https://example.com/wg/oldtoken/geoip.dat") {
+		t.Fatalf("rotated config kept old geoip url: %s", configText)
+	}
+	if strings.Contains(configText, "https://example.com/wg/oldtoken/geosite.dat") {
+		t.Fatalf("rotated config kept old geosite url: %s", configText)
+	}
+}
+
 func TestUpdateGeodataAndReadLogs(t *testing.T) {
 	root := t.TempDir()
 	manager := newTestManager(t, root, testPaths{
